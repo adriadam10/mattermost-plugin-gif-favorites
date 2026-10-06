@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /webapp
+    schedule:
+      interval: weekly
+    groups:
+      # Todo el tooling de build en un solo PR.
+      build-tooling:
+        patterns: ['*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
