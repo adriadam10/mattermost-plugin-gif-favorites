@@ -1,6 +1,7 @@
-import React, {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {useSelector} from 'react-redux';
 
+import {CHANGED_EVENT} from './inline_star.js';
 import {addFavorite, listFavorites, removeFavorite, searchGiphy, sendGif} from './api.js';
 
 export const OPEN_EVENT = 'gif-favorites:open';
@@ -12,6 +13,8 @@ export default function Panel() {
     const [results, setResults] = useState([]);
     const [favs, setFavs] = useState([]);
     const [error, setError] = useState('');
+    const [next, setNext] = useState(null);
+    const loading = useRef(false);
 
     const userId = useSelector((s) => s.entities.users.currentUserId);
     const channelId = useSelector((s) => s.entities.channels.currentChannelId);
@@ -27,9 +30,26 @@ export default function Panel() {
 
     useEffect(() => {
         if (open) {
-            listFavorites(userId).then(setFavs, fail);
+            listFavorites(userId).then((l) => {
+                setFavs(l);
+                setError('');
+            }, fail);
         }
     }, [open, userId]);
+
+    // Una página de GIPHY; con offset 0 reemplaza los resultados, si no los añade (scroll infinito).
+    const load = useCallback(async (offset) => {
+        loading.current = true;
+        try {
+            const page = await searchGiphy(key, query.trim(), offset);
+            setResults((l) => (offset ? [...l, ...page.gifs.filter((g) => !l.some((x) => x.id === g.id))] : page.gifs));
+            setNext(page.next);
+        } catch (e) {
+            fail(e);
+        } finally {
+            loading.current = false;
+        }
+    }, [key, query]);
 
     // Búsqueda con debounce; sin texto muestra los trending.
     useEffect(() => {
@@ -40,9 +60,16 @@ export default function Panel() {
             setError('Falta ServiceSettings.GiphySdkKey');
             return undefined;
         }
-        const t = setTimeout(() => searchGiphy(key, query.trim()).then(setResults, fail), 300);
+        const t = setTimeout(() => load(0), 300);
         return () => clearTimeout(t);
-    }, [open, tab, query, key]);
+    }, [open, tab, load]);
+
+    const onScroll = (e) => {
+        const el = e.currentTarget;
+        if (tab === 'search' && next !== null && !loading.current && el.scrollTop + el.clientHeight >= el.scrollHeight - 400) {
+            load(next);
+        }
+    };
 
     const isFav = (id) => favs.some((f) => f.id === id);
 
@@ -55,6 +82,7 @@ export default function Panel() {
                 await addFavorite(userId, gif);
                 setFavs((l) => [...l, gif]);
             }
+            window.dispatchEvent(new Event(CHANGED_EVENT));
         } catch (e) {
             fail(e);
         }
@@ -87,13 +115,15 @@ export default function Panel() {
                 </div>
                 {error && <div className='gif-fav__error'>{error}</div>}
                 {list.length === 0 && <div className='gif-fav__empty'>{tab === 'favorites' ? 'Aún no tienes favoritos: búscalos y pulsa ☆.' : 'Sin resultados.'}</div>}
-                <div className='gif-fav__grid'>
+                <div className='gif-fav__grid' onScroll={onScroll}>
+                    <div className='gif-fav__cols'>
                     {list.map((g) => (
                         <div key={g.id} className='gif-fav__item'>
                             <img src={g.url} loading='lazy' onClick={() => send(g)}/>
                             <button onClick={() => toggle(g)}>{isFav(g.id) ? '★' : '☆'}</button>
                         </div>
                     ))}
+                    </div>
                 </div>
             </div>
         </div>
