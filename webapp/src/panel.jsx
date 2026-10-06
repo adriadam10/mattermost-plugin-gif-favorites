@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {useSelector} from 'react-redux';
 
 import {addFavorite, listFavorites, removeFavorite, searchGiphy, sendGif} from './api.js';

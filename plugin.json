@@ -4,7 +4,7 @@
     "description": "Guarda GIFs de GIPHY como favoritos (por usuario) y envíalos desde un panel propio.",
     "homepage_url": "https://github.com/adriadam10/mattermost-plugin-gif-favorites",
     "support_url": "https://github.com/adriadam10/mattermost-plugin-gif-favorites/issues",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "min_server_version": "9.1.0",
     "webapp": {
         "bundle_path": "webapp/dist/main.js"

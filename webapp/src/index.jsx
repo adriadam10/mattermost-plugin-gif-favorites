@@ -1,3 +1,4 @@
+import React from 'react';
 import manifest from '../../plugin.json';
 
 import Panel, {OPEN_EVENT} from './panel.jsx';
