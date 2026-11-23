@@ -1,21 +1,35 @@
 #!/bin/sh
-# Builds dist/<plugin-id>-<version>.tar.gz inside a Node container, so only Docker is needed.
-# In CI (CI=true) Node is already there and runs directly.
+# Builds dist/<plugin-id>-<version>.tar.gz: tests and builds the Go server part and the webapp.
+# Locally it runs inside Go and Node containers, so only Docker is needed; in CI (CI=true)
+# Go and Node are already installed and run directly.
+# Usage: ./build.sh
 set -eu
 cd "$(dirname "$0")"
 
-steps='npm ci --no-audit --no-fund && npm test && npm run build'
+server_steps='unformatted=$(gofmt -l .); if [ -n "$unformatted" ]; then echo "gofmt: $unformatted" >&2; exit 1; fi;
+go vet ./... && go test ./... &&
+for arch in amd64 arm64; do
+    CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath -ldflags="-s -w" -o dist/plugin-linux-$arch .
+done'
+webapp_steps='npm ci --no-audit --no-fund && npm test && npm run build'
+
 if [ "${CI:-}" = true ]; then
-    (cd webapp && sh -c "$steps")
+    (cd server && sh -c "$server_steps")
+    (cd webapp && sh -c "$webapp_steps")
 else
-    docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/src" -w /src/webapp node:22-alpine sh -c "$steps"
+    # Module and build caches persist in scratchpad/ (ignored by git) between runs.
+    mkdir -p scratchpad/go
+    docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e GOPATH=/cache/gopath -e GOCACHE=/cache/build \
+        -v "$PWD/scratchpad/go:/cache" -v "$PWD:/src" -w /src/server golang:1.27-alpine sh -c "$server_steps"
+    docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/src" -w /src/webapp node:22-alpine sh -c "$webapp_steps"
 fi
 
 id=$(sed -n 's/^ *"id": *"\([^"]*\)".*/\1/p' plugin.json)
 version=$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' plugin.json)
 
-rm -rf dist && mkdir -p "dist/$id/webapp"
+rm -rf dist && mkdir -p "dist/$id/server" "dist/$id/webapp"
 cp plugin.json "dist/$id/"
+cp -r server/dist "dist/$id/server/"
 cp -r webapp/dist "dist/$id/webapp/"
 tar -czf "dist/$id-$version.tar.gz" -C dist "$id"
 rm -rf "dist/$id"

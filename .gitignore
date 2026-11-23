@@ -2,3 +2,4 @@ scratchpad/
 node_modules/
 webapp/dist/
 dist/
+server/dist/
